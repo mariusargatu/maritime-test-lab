@@ -1,0 +1,44 @@
+"A planned sailing between two ports, with its async-populated estimate."
+type Voyage {
+  clientRequestId: ID!
+  origin: String!
+  dest: String!
+  distanceNm: Int!
+  feesMinor: Int!
+  version: Int!
+  "Authoritative estimate, populated asynchronously. 0 until applied."
+  estimateMinor: Int!
+}
+
+input CreateVoyageInput {
+  clientRequestId: ID!
+  origin: String!
+  dest: String!
+  distanceNm: Int!
+  feesMinor: Int!
+}
+
+input UpdateVoyageInput {
+  clientRequestId: ID!
+  origin: String!
+  dest: String!
+  distanceNm: Int!
+  feesMinor: Int!
+  version: Int!
+}
+
+"The created voyage plus its best-effort provisional (sync) quote."
+type CreateVoyagePayload {
+  voyage: Voyage!
+  provisionalEstimateMinor: Int!
+  estimatePending: Boolean!
+}
+
+type Query {
+  voyage(clientRequestId: ID!): Voyage
+}
+
+type Mutation {
+  createVoyage(input: CreateVoyageInput!): CreateVoyagePayload!
+  updateVoyage(input: UpdateVoyageInput!): Voyage!
+}

@@ -1,0 +1,20 @@
+# Minimal Tempo (obs profile, demo only): receive OTLP traces, store locally.
+# The services are instrumented (OTel SDK + kotel, D-047); traces flow when
+# OTEL_ENDPOINT points at the collector that forwards here.
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal

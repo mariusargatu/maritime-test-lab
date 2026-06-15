@@ -1,0 +1,117 @@
+# L2 service-integration suite (Phase 2): gRPC + SQL only — Kafka steps arrive in
+# Phase 3. Conventions: every assertion is identity-scoped on client_request_id
+# (never an unscoped count or a message ordinal). The first testcase purges the
+# Gripmock stubs and posts exactly what this suite needs, so suites never bleed
+# stubs into each other.
+name: voyage create
+testcases:
+  - name: seed estimator stubs
+    steps:
+      - type: http
+        method: DELETE
+        url: "{{.gripmock_api}}"
+        assertions:
+          - result.statuscode ShouldBeLessThan 300
+      - type: http
+        method: POST
+        url: "{{.gripmock_api}}"
+        headers:
+          Content-Type: application/json
+        body: |
+          [
+            {"service":"EstimatorService","method":"Estimate",
+             "input":{"contains":{"client_request_id":"{{.uuid}}"}},
+             "output":{"data":{"amount_minor":25000,"currency":"USD"}}},
+            {"service":"EstimatorService","method":"Estimate",
+             "input":{"contains":{"client_request_id":"{{.uuid_async}}"}},
+             "output":{"data":{"amount_minor":25000,"currency":"USD"}}},
+            {"service":"EstimatorService","method":"Estimate",
+             "input":{"contains":{"client_request_id":"{{.uuid_unavailable}}"}},
+             "output":{"error":"estimator down","code":14}}
+          ]
+        assertions:
+          - result.statuscode ShouldEqual 200
+
+  - name: create voyage twice with same client_request_id
+    steps:
+      - type: grpc
+        url: "{{.voyage_addr}}"
+        service: voyage.v1.VoyageService
+        method: CreateVoyage
+        data:
+          client_request_id: "{{.uuid}}"
+          origin: "NLRTM"
+          dest: "SGSIN"
+          distance_nm: 8200
+          fees_minor: 5000
+        assertions:
+          - result.code ShouldEqual 0
+      - type: grpc
+        url: "{{.voyage_addr}}"
+        service: voyage.v1.VoyageService
+        method: CreateVoyage
+        data:
+          client_request_id: "{{.uuid}}"
+          origin: "NLRTM"
+          dest: "SGSIN"
+          distance_nm: 8200
+          fees_minor: 5000
+        assertions:
+          - result.code ShouldEqual 0
+      - type: sql
+        driver: postgres
+        dsn: "{{.pg_dsn}}"
+        commands:
+          - "select count(*) as n from voyages where client_request_id = '{{.uuid}}'"
+        assertions:
+          - result.queries.queries0.rows.rows0.n ShouldEqual 1
+
+  - name: estimator unavailable still creates the voyage with estimate pending
+    steps:
+      - type: grpc
+        url: "{{.voyage_addr}}"
+        service: voyage.v1.VoyageService
+        method: CreateVoyage
+        data:
+          client_request_id: "{{.uuid_unavailable}}"
+          origin: "NLRTM"
+          dest: "SGSIN"
+          distance_nm: 5000
+          fees_minor: 1000
+        assertions:
+          - result.code ShouldEqual 0
+      - type: sql
+        driver: postgres
+        dsn: "{{.pg_dsn}}"
+        commands:
+          - "select count(*) as n from voyages where client_request_id = '{{.uuid_unavailable}}' and estimate_minor is null"
+        assertions:
+          - result.queries.queries0.rows.rows0.n ShouldEqual 1
+
+  # The flagship async loop: create -> voyage.created (outbox) -> estimator prices
+  # -> estimate.ready -> voyage's consumer applies the versioned upsert. We poll
+  # the table until the authoritative estimate lands (8200nm * 200 + 5000 fees).
+  # 25s budget = a couple of Kafka round trips; documented so nobody shrinks it.
+  - name: async loop fills the authoritative estimate
+    steps:
+      - type: grpc
+        url: "{{.voyage_addr}}"
+        service: voyage.v1.VoyageService
+        method: CreateVoyage
+        data:
+          client_request_id: "{{.uuid_async}}"
+          origin: "NLRTM"
+          dest: "SGSIN"
+          distance_nm: 8200
+          fees_minor: 5000
+        assertions:
+          - result.code ShouldEqual 0
+      - type: sql
+        driver: postgres
+        dsn: "{{.pg_dsn}}"
+        retry: 25
+        delay: 1
+        commands:
+          - "select estimate_minor from voyages where client_request_id = '{{.uuid_async}}' and estimate_minor is not null"
+        assertions:
+          - result.queries.queries0.rows.rows0.estimate_minor ShouldEqual 1645000

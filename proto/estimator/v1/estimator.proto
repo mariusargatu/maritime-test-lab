@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package estimator.v1;
+
+// EstimatorService prices a voyage: distance * rate + fees. Stateless.
+// This is the downstream dependency that gomock fakes at L1 and Gripmock
+// stubs at L2; the async authoritative path runs over Kafka (Phase 3).
+service EstimatorService {
+  rpc Estimate(EstimateRequest) returns (EstimateResponse);
+}
+
+message EstimateRequest {
+  string client_request_id = 1; // correlation + idempotency key
+  int32 distance_nm = 2;
+  int64 fees_minor = 3;
+}
+
+message EstimateResponse {
+  int64 amount_minor = 1; // USD minor units (cents)
+  string currency = 2;    // ISO 4217; "USD" in v1
+}

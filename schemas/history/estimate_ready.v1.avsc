@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "EstimateReady",
+  "namespace": "estimator.v1",
+  "doc": "PRIOR VERSION (v1) of estimator.v1.EstimateReady, kept solely for the evolution gate. It carries a since-removed engine_version field (default \"\"): a value written under v1 must round-trip through the current schema (which drops engine_version) and a current value must round-trip back through v1 (which default-fills it). This exercises real Avro schema resolution, not a self-identity tautology.",
+  "fields": [
+    { "name": "voyage_id", "type": "string", "doc": "the voyage's client_request_id (correlation key)" },
+    { "name": "voyage_version", "type": "long", "doc": "version of the voyage that was priced" },
+    { "name": "amount_minor", "type": "long", "doc": "authoritative cost, USD minor units (cents)" },
+    { "name": "currency", "type": "string", "doc": "ISO 4217; USD in v1" },
+    { "name": "calculated_at", "type": { "type": "long", "logicalType": "timestamp-millis" }, "doc": "when the estimate was computed" },
+    { "name": "engine_version", "type": "string", "default": "", "doc": "removed in the current schema; kept here as the evolved-away field" }
+  ]
+}

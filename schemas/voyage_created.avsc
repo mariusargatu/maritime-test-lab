@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "VoyageCreated",
+  "namespace": "voyage.v1",
+  "doc": "Emitted via the transactional outbox when a voyage is created. Field names mirror the voyage.v1.Voyage proto message (parity gate, Phase 1); monetary amounts are long minor units, never float.",
+  "fields": [
+    { "name": "client_request_id", "type": "string", "doc": "caller-supplied UUID; idempotency key" },
+    { "name": "origin", "type": "string", "doc": "UN/LOCODE" },
+    { "name": "dest", "type": "string", "doc": "UN/LOCODE" },
+    { "name": "distance_nm", "type": "int", "doc": "nautical miles" },
+    { "name": "fees_minor", "type": "long", "doc": "USD minor units (cents)" },
+    { "name": "version", "type": "long", "doc": "monotonic per-record version counter" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "VoyageCreated",
+  "namespace": "voyage.v1",
+  "doc": "RED FIXTURE — NOT a real schema. distance_nm is changed from int to string, which is incompatible under FULL. The SR gate must reject this; a gate that has never rejected anything is decoration (D-022).",
+  "fields": [
+    { "name": "client_request_id", "type": "string" },
+    { "name": "origin", "type": "string" },
+    { "name": "dest", "type": "string" },
+    { "name": "distance_nm", "type": "string" },
+    { "name": "fees_minor", "type": "long" },
+    { "name": "version", "type": "long" }
+  ]
+}

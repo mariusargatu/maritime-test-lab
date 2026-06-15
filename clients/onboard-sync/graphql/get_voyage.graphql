@@ -1,0 +1,9 @@
+query GetVoyage($clientRequestId: ID!) {
+  voyage(clientRequestId: $clientRequestId) {
+    clientRequestId
+    origin
+    dest
+    version
+    estimateMinor
+  }
+}

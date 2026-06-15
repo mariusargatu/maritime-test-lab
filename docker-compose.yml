@@ -1,0 +1,189 @@
+name: maritime-test-lab
+
+# Phase 0 substrate: infrastructure (postgres, redpanda, topic-init) plus the two
+# Go service skeletons. A service never appears here before its build context
+# exists — gateway joins in Phase 5, toxiproxy in 6b, the obs quartet in 7.
+services:
+  postgres:
+    image: postgres:16.6
+    environment:
+      POSTGRES_PASSWORD: dev
+    ports:
+      - "${PG_PORT:-15432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 15
+
+  redpanda:
+    image: redpandadata/redpanda:v25.1.1 # >= v25.1: consumer-group lag metrics (Phase 7)
+    command:
+      - redpanda
+      - start
+      - --mode
+      - dev-container
+      - --smp
+      - "1"
+      - --memory
+      - 256M
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:19092
+      - --schema-registry-addr
+      - 0.0.0.0:8081
+    ports:
+      - "${KAFKA_PORT:-19092}:19092" # host clients: localhost:19092 / in-network: redpanda:9092
+      - "${SR_PORT:-18081}:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 2s
+      retries: 20
+
+  topic-init:
+    image: redpandadata/redpanda:v25.1.1
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    # Idempotent (|| true): re-running against a live broker must not fail. Also
+    # enables consumer-group lag metrics (v25.1+, D-013) — a dashboard surface.
+    entrypoint:
+      - sh
+      - -c
+      - >
+        rpk -X brokers=redpanda:9092 topic create voyage.created estimate.ready voyage.created.dlq estimate.ready.dlq || true;
+        rpk -X brokers=redpanda:9092 cluster config set enable_consumer_group_metrics '["group","partition","consumer_lag"]' || true
+
+  voyage:
+    build:
+      context: .
+      dockerfile: services/voyage/Dockerfile
+    environment:
+      VOYAGE_GRPC_ADDR: ":9000"
+      VOYAGE_METRICS_ADDR: ":9100"
+      VOYAGE_DB_DSN: "postgres://postgres:dev@postgres:5432/postgres?sslmode=disable"
+      ESTIMATOR_ADDR: "estimator:9001"
+      KAFKA_BROKERS: "redpanda:9092"
+      SCHEMA_REGISTRY_URL: "http://redpanda:8081"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_ENDPOINT:-}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      topic-init:
+        condition: service_completed_successfully
+    ports:
+      - "${VOYAGE_GRPC_PORT:-9000}:9000"
+      - "${VOYAGE_METRICS_PORT:-19100}:9100"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=:9000"]
+      interval: 2s
+      retries: 15
+    restart: on-failure
+
+  estimator:
+    build:
+      context: .
+      dockerfile: services/estimator/Dockerfile
+    environment:
+      ESTIMATOR_GRPC_ADDR: ":9001"
+      KAFKA_BROKERS: "redpanda:9092"
+      SCHEMA_REGISTRY_URL: "http://redpanda:8081"
+      RATE_PER_NM_MINOR: "200"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_ENDPOINT:-}"
+    depends_on:
+      topic-init:
+        condition: service_completed_successfully
+    ports:
+      - "${ESTIMATOR_GRPC_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=:9001"]
+      interval: 2s
+      retries: 15
+    restart: on-failure
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    profiles: ["edge"] # only when a layer needs the front half (L4 smoke, L5, L6)
+    environment:
+      GATEWAY_HTTP_ADDR: ":8080"
+      VOYAGE_ADDR: "voyage:9000"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_ENDPOINT:-}"
+    depends_on:
+      voyage:
+        condition: service_healthy # gateway's ONLY edge (D-004)
+    ports:
+      - "${GATEWAY_PORT:-18080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      interval: 2s
+      retries: 15
+    restart: on-failure
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    profiles: ["chaos"] # L5 resilience only
+    # Proxies are created at runtime by the L5 TestMain (listen 0.0.0.0 so the
+    # host can reach them). 8474 = admin API, 8666 = the gateway proxy.
+    ports:
+      - "8474:8474"
+      - "8666:8666"
+
+  # ── observability quartet: profile "obs" — DEMO only. No test gate depends on
+  #    these (D-032): the perf gate computes lag via kadm.Lag, promtool tests rules
+  #    serverless. Prometheus loads the monitor rules + scrapes voyage /metrics.
+  prometheus:
+    image: prom/prometheus:v3.2.0
+    profiles: ["obs"]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./observability/rules:/etc/prometheus/rules
+    ports:
+      - "${PROM_PORT:-19090}:9090"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.121.0
+    profiles: ["obs"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml
+
+  tempo:
+    image: grafana/tempo:2.7.1
+    profiles: ["obs"]
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    profiles: ["obs"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "${GRAFANA_PORT:-13000}:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+
+  # The QA-built-monitor alert route: Prometheus → Alertmanager → a webhook log
+  # sink (the Slack-automation stand-in, D-035). Demo only (obs profile).
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    profiles: ["obs"]
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "${ALERTMANAGER_PORT:-19093}:9093"
+
+  webhook-sink:
+    image: mendhak/http-https-echo:36
+    profiles: ["obs"]
+    environment:
+      HTTP_PORT: "8080"
+    ports:
+      - "${WEBHOOK_PORT:-18088}:8080"

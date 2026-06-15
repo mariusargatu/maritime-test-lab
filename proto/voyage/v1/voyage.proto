@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package voyage.v1;
+
+// VoyageService owns voyages and their cost estimates. The gateway's only edge.
+service VoyageService {
+  // CreateVoyage is idempotent on client_request_id: a retry returns the
+  // existing voyage, never AlreadyExists and never a duplicate row.
+  rpc CreateVoyage(CreateVoyageRequest) returns (CreateVoyageResponse);
+  // UpdateVoyage is full-replace carrying version. Higher version wins; a
+  // stale version is a no-op that returns current server state (merge rule
+  // goes live in Phase 6b).
+  rpc UpdateVoyage(UpdateVoyageRequest) returns (UpdateVoyageResponse);
+  rpc GetVoyage(GetVoyageRequest) returns (GetVoyageResponse);
+}
+
+// Voyage is a planned sailing between two ports.
+message Voyage {
+  // client_request_id is a caller-supplied UUID and the idempotency key.
+  string client_request_id = 1;
+  string origin = 2; // UN/LOCODE, e.g. "NLRTM"
+  string dest = 3;   // UN/LOCODE, e.g. "SGSIN"
+  int32 distance_nm = 4; // nautical miles, client-supplied
+  int64 fees_minor = 5;  // flat fees, USD minor units (cents)
+  // version is a monotonic per-record counter; higher wins on conflict.
+  int64 version = 6;
+  // estimate_minor is the authoritative cost, populated asynchronously when the
+  // estimate.ready event is applied (Phase 3). Zero until then. Not part of the
+  // voyage.created event — see the parity allowlist.
+  int64 estimate_minor = 7;
+}
+
+message CreateVoyageRequest {
+  string client_request_id = 1;
+  string origin = 2;
+  string dest = 3;
+  int32 distance_nm = 4;
+  int64 fees_minor = 5;
+}
+
+message CreateVoyageResponse {
+  Voyage voyage = 1;
+  // provisional_estimate_minor is the best-effort sync quote from the estimator,
+  // returned immediately. It is NOT persisted — the authoritative estimate
+  // arrives asynchronously. estimate_pending is true when the estimator was
+  // unavailable, in which case provisional_estimate_minor is 0.
+  int64 provisional_estimate_minor = 2;
+  bool estimate_pending = 3;
+}
+
+message UpdateVoyageRequest {
+  // Full voyage including the version the caller believes it is updating.
+  Voyage voyage = 1;
+}
+
+message UpdateVoyageResponse {
+  // Current server state after the higher-version-wins merge.
+  Voyage voyage = 1;
+}
+
+message GetVoyageRequest {
+  string client_request_id = 1;
+}
+
+message GetVoyageResponse {
+  Voyage voyage = 1;
+}

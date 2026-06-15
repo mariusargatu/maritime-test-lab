@@ -1,0 +1,9 @@
+name,distance_nm,fees_minor,rate_minor,want_minor,want_err
+prices distance plus fees,100,5000,200,25000,
+zero distance is just fees,0,5000,200,5000,
+zero fees is distance times rate,100,0,200,20000,
+large but in range,1000000,0,1000000,1000000000000,
+rejects negative distance,-1,0,200,0,ErrNegativeDistance
+rejects zero rate,100,0,0,0,ErrNonPositiveRate
+rejects negative rate,100,0,-5,0,ErrNonPositiveRate
+rejects overflow,2,0,9223372036854775807,0,ErrOverflow

@@ -1,0 +1,13 @@
+{
+  "name": "maritime-test-lab",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tooling-only npm surface. The lab is Go; two npm devDependencies provide test gates — @graphql-inspector/cli (L3 GraphQL consumer-contract gate, make contract-graphql) and squawk-cli (DB DDL breaking-change gate, scripts/lint-migrations.sh in make lint). No application JavaScript.",
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@graphql-inspector/cli": "^6.0.8",
+    "squawk-cli": "^2.57.0"
+  }
+}

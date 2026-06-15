@@ -1,0 +1,63 @@
+# L4 whole-stack smoke (Venom HTTP/GraphQL vs the compose stack). Zero stubs:
+# real gateway, voyage, estimator, Postgres, Redpanda. Two journeys, each with a
+# unique client_request_id (passed in by make smoke). The poll budget is
+# retry 15 * delay 2 = 30s = one Kafka round trip on a cold stack; documented so
+# nobody shrinks it. All assertions are identity-scoped on client_request_id.
+name: voyage whole-stack smoke
+testcases:
+  - name: create a voyage then poll until the authoritative estimate arrives
+    steps:
+      - type: http
+        method: POST
+        url: "{{.gateway_url}}/query"
+        headers:
+          Content-Type: application/json
+        body: >
+          {"query":"mutation($input: CreateVoyageInput!){ createVoyage(input:$input){ voyage{ clientRequestId } provisionalEstimateMinor estimatePending } }",
+           "variables":{"input":{"clientRequestId":"{{.uuid_flagship}}","origin":"NLRTM","dest":"SGSIN","distanceNm":8200,"feesMinor":5000}}}
+        assertions:
+          - result.statuscode ShouldEqual 200
+          - result.bodyjson.data.createVoyage.voyage.clientRequestId ShouldEqual "{{.uuid_flagship}}"
+          - result.bodyjson.data.createVoyage.estimatePending ShouldEqual false
+          - result.bodyjson.data.createVoyage.provisionalEstimateMinor ShouldEqual 1645000
+
+      - type: http
+        method: POST
+        url: "{{.gateway_url}}/query"
+        headers:
+          Content-Type: application/json
+        retry: 15
+        delay: 2
+        body: >
+          {"query":"query($id: ID!){ voyage(clientRequestId:$id){ clientRequestId estimateMinor } }",
+           "variables":{"id":"{{.uuid_flagship}}"}}
+        assertions:
+          - result.bodyjson.data.voyage.estimateMinor ShouldEqual 1645000
+
+  - name: duplicate createVoyage returns the same voyage and never errors
+    steps:
+      - type: http
+        method: POST
+        url: "{{.gateway_url}}/query"
+        headers:
+          Content-Type: application/json
+        body: >
+          {"query":"mutation($input: CreateVoyageInput!){ createVoyage(input:$input){ voyage{ clientRequestId version } } }",
+           "variables":{"input":{"clientRequestId":"{{.uuid_dup}}","origin":"NLRTM","dest":"SGSIN","distanceNm":100,"feesMinor":0}}}
+        assertions:
+          - result.statuscode ShouldEqual 200
+          - result.bodyjson.data.createVoyage.voyage.clientRequestId ShouldEqual "{{.uuid_dup}}"
+          - result.bodyjson.data.createVoyage.voyage.version ShouldEqual 1
+
+      - type: http
+        method: POST
+        url: "{{.gateway_url}}/query"
+        headers:
+          Content-Type: application/json
+        body: >
+          {"query":"mutation($input: CreateVoyageInput!){ createVoyage(input:$input){ voyage{ clientRequestId version } } }",
+           "variables":{"input":{"clientRequestId":"{{.uuid_dup}}","origin":"NLRTM","dest":"SGSIN","distanceNm":100,"feesMinor":0}}}
+        assertions:
+          - result.statuscode ShouldEqual 200
+          - result.bodyjson.data.createVoyage.voyage.clientRequestId ShouldEqual "{{.uuid_dup}}"
+          - result.bodyjson.data.createVoyage.voyage.version ShouldEqual 1

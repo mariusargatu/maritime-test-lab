@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "VoyageCreated",
+  "namespace": "voyage.v1",
+  "doc": "PRIOR VERSION (v1) of voyage.v1.VoyageCreated, kept solely for the evolution gate. It carries a since-removed route_code field (default \"\"): a value written under v1 must round-trip through the current schema (which drops route_code) and a current value must round-trip back through v1 (which default-fills it). This exercises real Avro schema resolution, not a self-identity tautology.",
+  "fields": [
+    { "name": "client_request_id", "type": "string", "doc": "caller-supplied UUID; idempotency key" },
+    { "name": "origin", "type": "string", "doc": "UN/LOCODE" },
+    { "name": "dest", "type": "string", "doc": "UN/LOCODE" },
+    { "name": "distance_nm", "type": "int", "doc": "nautical miles" },
+    { "name": "fees_minor", "type": "long", "doc": "USD minor units (cents)" },
+    { "name": "version", "type": "long", "doc": "monotonic per-record version counter" },
+    { "name": "route_code", "type": "string", "default": "", "doc": "removed in the current schema; kept here as the evolved-away field" }
+  ]
+}

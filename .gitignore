@@ -1,0 +1,40 @@
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+/bin/
+/tmp/
+
+# Test / profiling artifacts
+*.out
+*.test
+coverage.*
+# rapid property-test failfiles (written on failure under testdata/rapid/ at ANY
+# depth — the mutation gate regenerates them every run; **/ matches nested pkgs).
+**/testdata/rapid/
+# go-mutesting writes report.json to CWD; the L0.5 gate also cleans it up.
+/report.json
+# brokerless pact files — regenerated each `make contract` run by the consumer tests
+test/pact/pacts/
+# venom run logs (written to CWD by the venom binary)
+venom*.log
+
+# Go workspace (single module here)
+go.work
+go.work.sum
+
+# Node (the only npm surface is @graphql-inspector/cli — tooling, not shipped)
+node_modules/
+
+# Local-only env overrides. The committed `.env` is the shared default; never ignore it.
+.env.local
+*.local
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# NOTE: gen/ is intentionally COMMITTED (reviewable codegen diffs, buf-breaking baseline).
+# Do not add gen/ here.

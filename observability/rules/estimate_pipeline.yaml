@@ -1,0 +1,50 @@
+# The estimate-pipeline monitor (the QA-built-monitoring analog, D-035). These
+# alert rules are unit-tested with `promtool test rules` (make lint), including
+# red fixtures that MUST fire each alert. Metric names match internal/metricnames.
+groups:
+  - name: estimate_pipeline
+    rules:
+      - record: estimate:latency_seconds:p99
+        expr: histogram_quantile(0.99, sum by (le) (rate(voyage_estimate_latency_seconds_bucket[10m])))
+
+      - alert: EstimateLatencyHigh
+        expr: estimate:latency_seconds:p99 > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "estimate end-to-end p99 latency exceeds 5s"
+
+      - alert: EstimateErrorRateHigh
+        expr: sum(rate(voyage_estimate_errors_total[5m])) / sum(rate(voyage_estimate_applied_total[5m])) > 0.01
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "estimate error rate above 1%"
+
+      - alert: DLQNotEmpty
+        expr: voyage_dlq_depth > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DLQ depth above zero — a poison pill landed"
+
+      - alert: ConsumerLagGrowing
+        expr: voyage_consumer_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "consumer lag not draining"
+
+      # The no-data lesson (D-035): a vanished pipeline metric must ALERT, never
+      # read as healthy. absent() fires when the series is missing.
+      - alert: EstimatePipelineAbsent
+        expr: absent(voyage_estimate_applied_total)
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "estimate pipeline metric absent — no data is NOT healthy"

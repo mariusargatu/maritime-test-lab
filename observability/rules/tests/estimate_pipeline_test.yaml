@@ -1,0 +1,71 @@
+# promtool test rules — every alert has a red fixture: a synthetic series that
+# MUST fire it. A gate that has never gone red is decoration (D-022).
+rule_files:
+  - ../estimate_pipeline.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # DLQ depth > 0 must fire.
+  - interval: 1m
+    input_series:
+      - series: "voyage_dlq_depth"
+        values: "0 0 1 1 1"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: DLQNotEmpty
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "DLQ depth above zero — a poison pill landed"
+
+  # No-data: the estimate metric is absent → EstimatePipelineAbsent must fire.
+  # (A different series is present so the pipeline is "running" but the key metric
+  # vanished — exactly the renamed/dropped-metric failure mode.)
+  - interval: 1m
+    input_series:
+      - series: "voyage_dlq_depth"
+        values: "0 0 0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: EstimatePipelineAbsent
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "estimate pipeline metric absent — no data is NOT healthy"
+
+  # Error rate above 1% must fire (5 errors per 500 applied = 1%+).
+  - interval: 1m
+    input_series:
+      - series: "voyage_estimate_errors_total"
+        values: "0+5x10"
+      - series: "voyage_estimate_applied_total"
+        values: "0+100x10"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: EstimateErrorRateHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "estimate error rate above 1%"
+
+  # Latency p99 above 5s must fire: most observations land in the (5,10] bucket.
+  - interval: 1m
+    input_series:
+      - series: 'voyage_estimate_latency_seconds_bucket{le="5"}'
+        values: "0+1x15"
+      - series: 'voyage_estimate_latency_seconds_bucket{le="10"}'
+        values: "0+100x15"
+      - series: 'voyage_estimate_latency_seconds_bucket{le="+Inf"}'
+        values: "0+100x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: EstimateLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "estimate end-to-end p99 latency exceeds 5s"

@@ -1,0 +1,13 @@
+mutation CreateVoyage($input: CreateVoyageInput!) {
+  createVoyage(input: $input) {
+    voyage {
+      clientRequestId
+      origin
+      dest
+      version
+      estimateMinor
+    }
+    provisionalEstimateMinor
+    estimatePending
+  }
+}

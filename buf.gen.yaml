@@ -1,0 +1,20 @@
+version: v2
+
+# Managed mode injects go_package so the .proto files stay free of generator
+# concerns. Prefix + source-relative paths put generated code at
+# gen/proto/<pkg>/ with import path maritime-test-lab/gen/proto/<pkg>.
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: maritime-test-lab/gen/proto
+
+# Plugins run via `go tool` — the versions pinned in go.mod, no PATH or
+# remote-registry dependency. Keeps codegen reproducible from a clean checkout.
+plugins:
+  - local: ["go", "tool", "protoc-gen-go"]
+    out: gen/proto
+    opt: paths=source_relative
+  - local: ["go", "tool", "protoc-gen-go-grpc"]
+    out: gen/proto
+    opt: paths=source_relative

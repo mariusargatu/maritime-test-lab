@@ -1,0 +1,26 @@
+# Squawk config — the DB DDL breaking-change gate (D-049).
+#
+# This gate is the database twin of `buf breaking` (proto) and the seeded
+# Schema-Registry FULL check (Avro): it exists to catch CONTRACT-BREAKING schema
+# changes, not to hand out zero-downtime migration advice. So the destructive /
+# consumer-breaking rules stay ON (drop / rename / retype / not-null / unique)
+# and the lock-duration + style rules are excluded below.
+pg_version = "16.0"
+
+# goose wraps each migration in a transaction by default, so tell squawk that —
+# it silences transaction-robustness noise for rules we don't gate on anyway.
+assume_in_transaction = true
+
+# Excluded: these are about migration ergonomics on a live production table
+# (lock duration, statement robustness, type/style preferences), not about
+# breaking an existing client. Out of scope for a breaking-change gate.
+excluded_rules = [
+  "require-timeout-settings",                     # set lock_timeout/statement_timeout — ops hygiene, not a break
+  "require-concurrent-index-creation",            # index lock duration, not a break
+  "ban-concurrent-index-creation-in-transaction", # goose runs each migration in a tx by design
+  "prefer-robust-stmts",                          # IF NOT EXISTS guards — style, not a break
+  "prefer-bigint-over-int",                       # column-width preference, not a break
+  "prefer-bigint-over-smallint",
+  "prefer-text-field",                            # varchar(n) vs text — style
+  "prefer-timestamptz",                           # schema already uses timestamptz throughout
+]

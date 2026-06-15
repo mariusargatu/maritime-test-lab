@@ -1,0 +1,59 @@
+{
+  "uid": "estimate-pipeline",
+  "title": "Estimate Pipeline",
+  "tags": ["maritime"],
+  "schemaVersion": 39,
+  "timezone": "browser",
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Estimate throughput (applied/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "rate(voyage_estimate_applied_total[1m])", "legendFormat": "applied/s" }]
+    },
+    {
+      "id": 2,
+      "title": "Estimate errors (/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "rate(voyage_estimate_errors_total[1m])", "legendFormat": "errors/s" }]
+    },
+    {
+      "id": 3,
+      "title": "Estimate p99 latency (s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "estimate:latency_seconds:p99", "legendFormat": "p99" }]
+    },
+    {
+      "id": 4,
+      "title": "Consumer lag",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "voyage_consumer_lag", "legendFormat": "lag" }]
+    },
+    {
+      "id": 5,
+      "title": "DLQ depth",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "voyage_dlq_depth" }]
+    },
+    {
+      "id": 6,
+      "title": "Idempotent dedupe (/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "rate(voyage_create_dedupe_total[1m])", "legendFormat": "dedupe/s" }]
+    }
+  ]
+}

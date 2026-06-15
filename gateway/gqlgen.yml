@@ -1,0 +1,20 @@
+# gqlgen config (schema-first). Generated code lands in gen/graphql (CLAUDE.md:
+# all generated code under gen/); hand-written resolvers live in gateway/graph.
+schema:
+  - gateway/schema.graphqls
+
+exec:
+  filename: gen/graphql/generated.go
+  package: graphql
+
+model:
+  filename: gen/graphql/model/models_gen.go
+  package: model
+
+resolver:
+  layout: follow-schema
+  dir: gateway/graph
+  package: graph
+  filename_template: "{name}.resolvers.go"
+
+omit_slice_element_pointers: true

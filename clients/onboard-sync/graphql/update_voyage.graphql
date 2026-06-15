@@ -1,0 +1,7 @@
+mutation UpdateVoyage($input: UpdateVoyageInput!) {
+  updateVoyage(input: $input) {
+    clientRequestId
+    version
+    estimateMinor
+  }
+}

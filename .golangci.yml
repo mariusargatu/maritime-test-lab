@@ -1,0 +1,19 @@
+# golangci-lint v2 config — hard gate (L0). Kept deliberately small and readable:
+# the "standard" set (errcheck, govet, ineffassign, staticcheck, unused) plus the
+# error-wrapping and formatting checks our CLAUDE.md style rules depend on.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - errorlint   # enforces %w / errors.Is/As — our "wrap with context" rule
+    - bodyclose   # response/body leaks
+    - misspell
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

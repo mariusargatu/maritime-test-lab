@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "EstimateReady",
+  "namespace": "estimator.v1",
+  "doc": "Published by the estimator after pricing a voyage. Consumed by the voyage service, which applies it with a versioned idempotent upsert. Monetary amounts are long minor units, never float.",
+  "fields": [
+    { "name": "voyage_id", "type": "string", "doc": "the voyage's client_request_id (correlation key)" },
+    { "name": "voyage_version", "type": "long", "doc": "version of the voyage that was priced" },
+    { "name": "amount_minor", "type": "long", "doc": "authoritative cost, USD minor units (cents)" },
+    { "name": "currency", "type": "string", "doc": "ISO 4217; USD in v1" },
+    { "name": "calculated_at", "type": { "type": "long", "logicalType": "timestamp-millis" }, "doc": "when the estimate was computed" }
+  ]
+}
